@@ -602,7 +602,7 @@ function draw_title()
  rectfill(0,selectiony,128,selectiony2,selectioncol)
  
  yprint +=4  
- cprint("tHe tOP tHREE",10) yprint+=7
+ cprint("tHE tOP tHREE",10) yprint+=7
  --rprint("abc",9,44) lprint("65535",9,84) yprint+=7
  --rprint("abc",9,44) lprint("65535",9,84) yprint+=7
  --rprint("abc",9,44) lprint("65535",9,84) yprint+=7
@@ -836,10 +836,11 @@ function ball_col(bx,by,dx,dy)
  end
  
  --check all corners
- return check((bx-4+2)\8, (by-4+2)\8) 
-  or check((bx-4+2+3)\8, (by-4+2)\8) 
-  or check((bx-4+2+3)\8, (by-4+2+3)\8) 
-  or check((bx-4+2)\8, (by-4+2+3)\8) 
+ local a1,a2,a3,a4 = check((bx-4+2)\8, (by-4+2)\8) 
+  , check((bx-4+2+3)\8, (by-4+2)\8) 
+  , check((bx-4+2+3)\8, (by-4+2+3)\8) 
+  , check((bx-4+2)\8, (by-4+2+3)\8) 
+ return a1 or a2 or a3 or a4
 end
 
 function gamelogic()
