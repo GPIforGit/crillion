@@ -20,6 +20,7 @@ MEMADR = 0x1300
 MEMSIZE = 0x2000-0x300
 FIELDWIDTH = 15
 FIELDHEIGHT = 11
+MAXEPISODE = 10
 
 
 local _bitsAdr
@@ -83,7 +84,7 @@ local function _ReadLevelData()
 	
 	_episodes = {}
 	BitsPosition(MEMADR)
-	for eNb = 1,4 do
+	for eNb = 1,MAXEPISODE do
 		local _levelData = {}
 		repeat
 			local x,y = Bits(4), Bits(4)
@@ -347,6 +348,23 @@ end
 
 -- Initalize
 function m.Init(m)
+
+
+---[[
+	--color reduce
+
+	for d=0.25,0.75,0.25 do
+	local str = ""
+	for c=0,15 do
+		str..= Pico:ColorNearest( Pico.RGB[c].r*d,Pico.RGB[c].g*d,Pico.RGB[c].b*d)..","
+	end
+	print("color",d,str)
+	end
+
+--]]
+
+
+
 	overArea:Init()
 	-- we have a custom menu
 	
@@ -391,7 +409,7 @@ function m.Init(m)
 		"UP"
 	)
 	
-	for i = 1, 4 do
+	for i = 1, MAXEPISODE do
 		men:Add("Episode"..i, "Episode "..i, 
 			function(e)
 				if not _valid then return false end

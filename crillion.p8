@@ -5,7 +5,25 @@ __lua__
 -- by gpi
 
 --[[ todo
-random-level ist kaputt!
+
+-version 1.02
+- ❎ - speed up temporary
+- 🅾️ - lock the ball in the column
+- better collision-detection-logik, when a ball hits a block/disc and recolor-block
+- move the start-position of the ball slidgly to the side since 2 pixel-movement is difficult
+- bugfix warp-wait after all blocks are destroyed was depending on gamespeed
+- disc-movment-speed is now affected by gamespeed
+- black border around the ball over particels
+- particels dim now
+- skip level-option in pause menu for training
+- crillion lvl 18,21 - bugfix
+- crillion lvl 6 - bugfix
+- crillion ii lvl 5,6,14,19 - bugfix
+- new episode: jUNIOR - form crillion junior by holy moses
+
+-version 1.01
+- correct "tHe" to "tHE"
+- correct minor collision-detection bug
 
 --]]
 
@@ -13,11 +31,19 @@ cartdata("4bd3ff36-582c-11ed-9b6a-0242ac120002_crillion")
 
 offsetfield = 16*3
 leveladr = 0x1300
-episodename=split("cRILLION,cRILLION '93,cRILLION 2,bRAINION")
-episodedesigner=split("oLIVER kIRWA,oLIVER kIRWA,oLIVER kIRWA,tHE jOKER & dR. gURU (dt #104)")
+episodename=split("cRILLION,cRILLION '93,cRILLION 2,bRAINION,jUNIOR")
+episodedesigner=split("oLIVER kIRWA,oLIVER kIRWA,oLIVER kIRWA,tHE jOKER & dR. gURU (dt #104),HOLY MOSES")
 modename = {training="tRAINING",score="hi-sCORE"}
 speedname=split("lIGHTSPEED,nORMAL,sLOW,sLEEPING")
 chartable = split("a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z, ,.,♥,🐱,★,●,◀,き")-- + back +end
+
+dimcolor={[4] = split("1,2,3,4,5, 6, 7,8,9,10,11,12,13,14,15,0"),
+										[3] = split("1,2,3,2,5,13, 6,8,4, 9, 3,16, 5, 4, 6,0"),
+										[2] = split("0,1,1,2,1, 5,13,2,4, 5, 3, 1, 1, 2, 5,0"),
+          [1] = split("0,0,0,0,0, 1, 1,0,1, 1, 1, 1, 1, 1, 1,0")}
+for i=1,#dimcolor do
+	dimcolor[i][0] = dimcolor[i][16]
+end          
 
 function find(table,what)
 	for nb,value in pairs(table) do
@@ -147,9 +173,13 @@ function _update60()
    balldx = 0
    balldy = 1
    waitwarp = 3*8
-   menuitem(4,"self-destruction",
+   if mode == "training" then
+	   menuitem(5,"skip",
+ 	  	function() bonus=0 blocks=0 end)
+   end
+   menuitem(3,"self-destruction",
    	function() balldeath = true end)
-   menuitem(5,"back to main",
+   menuitem(4,"back to main",
    	function() balldeath = true lives = 0 end)
   end
   
@@ -158,7 +188,7 @@ function _update60()
   if btn(➡️) then button = ➡️ end
   
   
-  if gamespeed == 0 then
+  if gamespeed == 0 or btn(❎) then
   	gamelogic()
    gamelogic()
   elseif anim % gamespeed == 0 then
@@ -170,13 +200,9 @@ function _update60()
    wait = 60
   end
   
-  if blocks <= 0 then
-  	if waitwarp <=0 then
-	  	change_handle("leveldone")
-	   wait = 60   
-   else
-   	waitwarp-=1
-   end
+  if blocks <= 0 and waitwarp <=0 then
+  	change_handle("leveldone")
+   wait = 60   
   end
  
  elseif handle == "leveldone" then
@@ -207,6 +233,7 @@ function _update60()
      end
 	    menuitem(5)
      menuitem(4)
+     menuitem(3)
 	   end
    end
   end
@@ -218,6 +245,7 @@ function _update60()
    	memcpy(0x8000,0x6000,0x2000)
     menuitem(4)
     menuitem(5)
+    menuitem(3)
     if mode != "training" then
 	    lives -= 1
     end
@@ -476,7 +504,7 @@ end
 function read_leveldata()
 	leveldata = {}
 	bitspos(leveladr)
-	for nb = 1, 4 do
+	for nb = 1, #episodename do
  	local levels = {index = #leveldata+1}
   repeat
   	local x,y = bits(4), bits(4)
@@ -536,8 +564,8 @@ function load_level()
   	blocks +=1
   end
  end
- ballx = lev.ballx * 8 - 4
- bally = lev.bally * 8 - 4
+ ballx = lev.ballx * 8 - 6+ (lev.ballx >=7 and 4 or 0)-- 4
+ bally = lev.bally * 8 - 6
  ballcol = lev.ballcol
  ballvis = false
  balldeath = false
@@ -551,6 +579,102 @@ end
 spacer = 1
 lspacer = 0
 
+
+
+-->8
+--settings
+function load_settings()
+	bitspos(0x5e00)
+ episode = bits(4)
+ level = bits(5)
+ mode =  bits(1)==0 and "training" or "score"
+ gamespeed = bits(2)
+ 
+ if episode == 0 and level == 0 then
+ 	episode = 1
+  level = 1
+ 	gamespeed = 1
+  mode = "score"
+  for epi=1,#leveldata do
+	  local hiscore={}
+	  for top = 1,3 do
+		 	add(hiscore,{name="gpi", score=4000-top*1000})
+	  end
+	  leveldata[epi].hiscore = hiscore
+	 end
+  return
+ end
+
+ gamespeed = mid(gamespeed,0,3)
+ episode = mid(episode,1,#leveldata)
+ level = mid(level,1,#leveldata[episode])
+
+ for epi=1,#leveldata do
+  local hiscore={}
+  for top = 1,3 do
+	 	local str = ""
+	  for c=1,3 do
+	  	str..=chartable[bits(5)+1]
+	  end
+   score =bits(16)
+   if str == "aaa" and score == 0 then str="gpi" score = 4000-top*1000 end
+	  add(hiscore,{name=str, score=score})
+  end
+  leveldata[epi].hiscore = hiscore
+ end
+end
+
+function save_settings()
+	bitspos(0x5e00)
+ bits(4,episode)
+ bits(5,level)
+ bits(1,mode=="training" and 0 or 1)
+ bits(2,gamespeed)
+ 
+ for epi=1,#leveldata do
+ 	for a=1,2 do
+  	for b=a+1,3 do
+   	if leveldata[epi].hiscore[a].score < leveldata[epi].hiscore[b].score then
+    	leveldata[epi].hiscore[a],leveldata[epi].hiscore[b] = leveldata[epi].hiscore[b],leveldata[epi].hiscore[a]
+ 			end
+   end
+  end
+ 
+ 	for top = 1, 3 do
+  	for c=1,3 do
+   	bits(5, find(chartable, sub(leveldata[epi].hiscore[top].name,c,c))-1)    
+   end
+   bits(16,leveldata[epi].hiscore[top].score)
+  end
+ end
+end
+-->8
+--paint
+
+function sprite(nb,x,y)
+	if nb then
+		spr(abs(nb), x, y,1,1, nb<0)
+ end
+end
+
+yprint = 0
+function cprint(str,col)
+	local x = print(str,0,-20)
+ print(str,64-x\2,yprint,col or 7)
+ return 64+x\2,64-x\2
+end
+
+function rprint(str,col,x,y)
+	local cx = print(str,0,-20)
+ print(str,(x or 128)-cx,y or yprint,col or 7)
+ return (x or 128) - cx
+end
+
+function lprint(str,col,x,y)
+	return print(str,(x or 0),y or yprint, col or 7)
+end
+-->8
+--draw
 function draw_gameover()
 	map(0,32)
  yprint = 3*8+4
@@ -673,40 +797,63 @@ function draw_level()
  end
  -- playfield
  pal()
-	-- blocks
- map(0,offsetfield,4,4)
- 
  --pixels
-  
+ local doborder
+ spl={} 
+ spldone={}
  for nb,pixel in pairs(movingpixels) do
  	pixel.live-=1
   if pixel.live>pixeldeath then
-  		if pixel.col < 16 then
-	    pset(pixel.x,pixel.y, pixel.col)
-    else
-     pset(pixel.x,pixel.y, 5+rnd(2))
+  
+  		local off,c = 1
+  		if pixel.live > 15 then
+    	off=4
+    elseif pixel.live >10 then
+    	off=3
+    elseif pixel.live >5 then
+    	off=2
     end
-    local bx,by = (pixel.x+pixel.dx-4)\8, (pixel.y-4)\8
-    if (bx<0 or by<0 or bx>=15 or by>=11) or mget(bx,by+offsetfield)!=0 then
-    	if pixel.col>16 and mget(bx,by+offsetfield)>=16 and mget(bx,by+offsetfield)<=23 then
-     	create_splitter(bx,by,pixel.x,pixel.y)
-      sound_splitter = 24 + mget(bx,by+offsetfield) - 16
-      mset(bx,by+offsetfield,0)
-      del(movingpixels,pixel)
-     else
-	    	pixel.dx = -pixel.dx *0.8
-     end
-		  end  
-    pixel.x+=pixel.dx
-			 bx,by = (pixel.x-4)\8, (pixel.y+pixel.dy-4)\8
-    if (bx<0 or by<0 or bx>=15 or by>=11) or mget(bx,by+offsetfield)!=0 then
-	    if pixel.col>16 and mget(bx,by+offsetfield)>=16 and mget(bx,by+offsetfield)<=23 then
-     	create_splitter(bx,by,pixel.x,pixel.y)
-      sound_splitter = 24 + mget(bx,by+offsetfield) - 16
-      mset(bx,by+offsetfield,0)   
-      del(movingpixels,pixel) 
-     else
-	    	pixel.dy = -pixel.dy *0.8
+  
+  		if pixel.col < 16 then
+  			c = dimcolor[off][pixel.col]
+    else
+     c = dimcolor[off][5+rnd(2)\1]
+    end
+
+    if c == 0 then
+	    	del(movingpixels,pixel)
+    else
+     pset(pixel.x,pixel.y, c)
+    
+    
+	    if abs(pixel.x-ballx-3.5)< 4 and abs(pixel.y-bally-3.5)<4 then
+	    	doborder = true
+	    end
+	    
+	    local bx,by = (pixel.x+pixel.dx-4)\8, (pixel.y-4)\8
+	    if (bx<0 or by<0 or bx>=15 or by>=11) or mget(bx,by+offsetfield)!=0 then
+	    	if pixel.col>16 and mget(bx,by+offsetfield)>=16 and mget(bx,by+offsetfield)<=23 then
+	     	if not spldone[bx.."x"..by] then
+		      spldone[bx.."x"..by] = true
+		      add(spl,{bx=bx,by=by,px=pixel.x,py=pixel.y})
+		      del(movingpixels,pixel)
+	      end
+	     else
+		    	pixel.dx = -pixel.dx *0.8
+	     end
+			  end  
+	    pixel.x+=pixel.dx
+				 bx,by = (pixel.x-4)\8, (pixel.y+pixel.dy-4)\8
+	    if (bx<0 or by<0 or bx>=15 or by>=11) or mget(bx,by+offsetfield)!=0 then
+		    if pixel.col>16 and mget(bx,by+offsetfield)>=16 and mget(bx,by+offsetfield)<=23 then
+	     	if not spldone[bx.."x"..by] then
+		      spldone[bx.."x"..by] = true
+		      add(spl,{bx=bx,by=by,px=pixel.x,py=pixel.y})
+		      del(movingpixels,pixel)
+	      end 
+	     else
+		    	pixel.dy = -pixel.dy *0.8
+	     end
      end
 		  end      
     pixel.y+=pixel.dy
@@ -716,11 +863,28 @@ function draw_level()
   
   --(bx-4+2)\8, (by-4+2)\8  
  end
-  
-   
+ 
+ pal()
+
+ if ballvis and doborder then
+  palt(0B0100000000000000)
+  spr(7,ballx,bally)
+  palt()
+ end
+ 
+	-- blocks
+ map(0,offsetfield,4,4)
+      
  if ballvis then
  	spr(8 + ballcol, ballx, bally)
  end
+
+ for nb,s in pairs(spl) do
+	 create_splitter(s.bx,s.by,s.px,s.py)
+	 sound_splitter = 24 + mget(s.bx,s.by+offsetfield) - 16
+	 mset(s.bx,s.by+offsetfield,0)
+ end  
+  
  for nb,disc in pairs(movingdisc) do
  	spr(disc.char, disc.x,disc.y)
  end
@@ -755,25 +919,20 @@ function draw_level()
  
  --anim disc
  --{char=char, mx=mx2,my=my2,dx=dx,dy=dy,c=8, x=mx*8+4, y=my*8+4}
- for nb,disc in pairs(movingdisc) do
- 	disc.x += disc.dx
-  disc.y += disc.dy
-  disc.c -= 1
-  if disc.c <= 0 then 
-  	mset(disc.mx, disc.my+offsetfield, disc.char)
-  	del(movingdisc,disc)
-  end
 
- end
 end
+
 
 function create_splitter(mx,my,cx,cy)
 	for y =my*8+4,my*8+4+7 do
 	 for x = mx*8+4,mx*8+4+7 do
-  	add(movingpixels,{col=pget(x,y),x=x,y=y,dx = (x-cx)/8 +rnd(1)-0.5, dy = (y-cy)/8+rnd(1)-0.5,live=rnd(20)\1+10})
+  	add(movingpixels,{col=pget(x,y),x=x,y=y,dx = (x-cx)/8 +rnd(1)-0.5, dy = (y-cy)/8+rnd(1)-0.5,live=rnd(22)\1+13})
   end
  end
 end
+
+-->8
+--gameplay
 
 function ball_col(bx,by,dx,dy)
 	bx+=dx
@@ -783,59 +942,34 @@ function ball_col(bx,by,dx,dy)
   	sound_ref = 61
   	return true -- collision level-wall
   end
-  local char = mget(mx,my+offsetfield)
-  if char == 0 then
-  	return false
+  local char,sym,col = mget(mx,my+offsetfield)
+  if char == 1 then
+ 		balldeath = true -- skull
    
-  elseif char == 1 then -- skull
-  	balldeath = true
+  elseif char == 2 then 
+	  sound_ref = 61-- stone
+   
+  elseif char >= 16 and char <= 23 then
+  	sym=3 -- block
+   col = char-16
+   
+  elseif char >= 24 and char <= 31 then
+  	sym=4 -- disc
+   col = char-24
+   
+  elseif char >= 32 and char <= 39 then  	
+   col = char-32-- recolor
+   collisioncol[col] = true
+   ballcol = col
+   sound_change = 40+col
+  end	  
   
-  elseif char == 2 then -- stone
-	  sound_ref = 61
-   
-  elseif char >= 24 and char <= 31 then -- disc
-  	if ballcol == char - 24 then
-				local mx2,my2 = mx + dx, my + dy    
-    if not(mx2<0 or my2<0 or mx2>=15 or my2>=11) and
-    	mget(mx2,my2+offsetfield) == 0 then
-  			--next field is empty -> move  
-     mset(mx,my+offsetfield,0)
-     add(movingdisc, {char=char, mx=mx2,my=my2,dx=dx,dy=dy,c=8, x=mx*8+4, y=my*8+4})
-     sound_disc = 32 + char - 24
-    else
-     sound_ref = 48 + char - 24
-    end    
-   else
-   	sound_ref = 48 + char - 24
-   end
-  
-  elseif char >= 16 and char <= 23 then -- blocks
-  	if ballcol == char - 16 then
-   	mset(mx,my+offsetfield,0)
-    create_splitter(mx,my,bx+4,by+4)
-    
-    blocks -= 1
-    if bonuscol == ballcol then
-    	bonuspoint += 0.1
-    else
-    	bonuscol = ballcol
-    	bonuspoint = 1
-    end 
-    
-    score += bonuspoint
-    sound_splitter = 24 + char - 16
-   else
-   	sound_ref=48+char-16
-   end
-   
-  elseif char >= 32 and char <= 39 then -- changer
-  	ballcol = char - 32
-   sound_change = 40+char-32
+  if sym then
+	  collision[mx.."x"..my]={mx=mx,my=my,dx=dx,dy=dy,sym=sym,col=col}
   end
-  return true
+  return char != 0 
  end
  
- --check all corners
  local a1,a2,a3,a4 = check((bx-4+2)\8, (by-4+2)\8) 
   , check((bx-4+2+3)\8, (by-4+2)\8) 
   , check((bx-4+2+3)\8, (by-4+2+3)\8) 
@@ -843,11 +977,56 @@ function ball_col(bx,by,dx,dy)
  return a1 or a2 or a3 or a4
 end
 
+function hit_blockdisc()
+	for p,hit in pairs(collision) do
+ 	if hit.sym == 4 then
+			sound_ref = 48 + hit.col
+  	if collisioncol[hit.col] then
+				local mx2,my2 = hit.mx + hit.dx, hit.my + hit.dy    
+    if not(mx2<0 or my2<0 or mx2>=15 or my2>=11) and
+    	mget(mx2,my2+offsetfield) == 0 then
+  			--next field is empty -> move  
+     mset(hit.mx,hit.my+offsetfield,0)
+     add(movingdisc, {char=hit.col+24, mx=mx2,my=my2,dx=hit.dx,dy=hit.dy,c=8, x=hit.mx*8+4, y=hit.my*8+4})
+    end    
+   end
+  
+  elseif hit.sym == 3 then -- blocks
+  	if collisioncol[hit.col] then
+   	mset(hit.mx,hit.my+offsetfield,0)
+    create_splitter(hit.mx,hit.my,ballx+4,bally+4)
+    
+    blocks -= 1
+    if bonuscol == hit.col then
+    	bonuspoint += 0.1
+    else
+    	bonuscol = hit.col
+    	bonuspoint = 1
+    end 
+    
+    score += bonuspoint
+    sound_splitter = 24 + hit.col
+   else
+   	sound_ref=48+hit.col
+   end
+   
+  end
+ end
+ 
+ --check all corners
+ 
+end
+
 function gamelogic()
 
  if blocks>=0 and bonus > 0 then
  	bonus -= 0.4 
  end
+
+	-- init collision
+	collision = {}
+	collisioncol = {[ballcol]=true}
+
 
 	-- first move ball left/right
  if ball_col(ballx, bally, balldx, 0) then
@@ -864,7 +1043,10 @@ function gamelogic()
  end
  bally += balldy
  
- -- x-movement only all 2 pixels
+ hit_blockdisc()
+ 
+ 
+ 	-- x-movement only all 2 pixels
  -- makes it easier to perform special things
  if bally%2 == 0 then
   if balldx == 0 and button then
@@ -873,119 +1055,50 @@ function gamelogic()
   	elseif button == ➡️ then
   		balldx = 1
   	end
+   if btn(🅾️) and (ballx-2+balldx*4)\8 != (ballx-2)\8 then
+   	balldx = 0
+   end
   end
+  
   button = nil
  end
-
-end
-
--->8
---settings
-function load_settings()
-	bitspos(0x5e00)
- episode = bits(4)
- level = bits(5)
- mode =  bits(1)==0 and "training" or "score"
- gamespeed = bits(2)
  
- if episode == 0 and level == 0 then
- 	episode = 1
-  level = 1
- 	gamespeed = 1
-  mode = "score"
-  for epi=1,#leveldata do
-	  local hiscore={}
-	  for top = 1,3 do
-		 	add(hiscore,{name="gpi", score=4000-top*1000})
-	  end
-	  leveldata[epi].hiscore = hiscore
-	 end
-  return
+ if blocks <= 0 and waitwarp >0 then
+	 	waitwarp-=1
  end
-
- gamespeed = mid(gamespeed,0,3)
- episode = mid(episode,1,#leveldata)
- level = mid(level,1,#leveldata[episode])
-
- for epi=1,#leveldata do
-  local hiscore={}
-  for top = 1,3 do
-	 	local str = ""
-	  for c=1,3 do
-	  	str..=chartable[bits(5)+1]
-	  end
-	  add(hiscore,{name=str, score=bits(16)})
-  end
-  leveldata[epi].hiscore = hiscore
- end
-end
-
-function save_settings()
-	bitspos(0x5e00)
- bits(4,episode)
- bits(5,level)
- bits(1,mode=="training" and 0 or 1)
- bits(2,gamespeed)
  
- for epi=1,#leveldata do
- 	for a=1,2 do
-  	for b=a+1,3 do
-   	if leveldata[epi].hiscore[a].score < leveldata[epi].hiscore[b].score then
-    	leveldata[epi].hiscore[a],leveldata[epi].hiscore[b] = leveldata[epi].hiscore[b],leveldata[epi].hiscore[a]
- 			end
-   end
-  end
  
- 	for top = 1, 3 do
-  	for c=1,3 do
-   	bits(5, find(chartable, sub(leveldata[epi].hiscore[top].name,c,c))-1)    
-   end
-   bits(16,leveldata[epi].hiscore[top].score)
+ for nb,disc in pairs(movingdisc) do
+ 	disc.x += disc.dx
+  disc.y += disc.dy
+  disc.c -= 1
+  if disc.c <= 0 then 
+  	mset(disc.mx, disc.my+offsetfield, disc.char)
+  	del(movingdisc,disc)
   end
+
  end
-end
--->8
---paint
+ 
 
-function sprite(nb,x,y)
-	if nb then
-		spr(abs(nb), x, y,1,1, nb<0)
- end
 end
 
-yprint = 0
-function cprint(str,col)
-	local x = print(str,0,-20)
- print(str,64-x\2,yprint,col or 7)
- return 64+x\2,64-x\2
-end
-
-function rprint(str,col,x,y)
-	local cx = print(str,0,-20)
- print(str,(x or 128)-cx,y or yprint,col or 7)
- return (x or 128) - cx
-end
-
-function lprint(str,col,x,y)
-	return print(str,(x or 0),y or yprint, col or 7)
-end
 __gfx__
-0000000022776622666d666d00100100227766222277662200000000000000000000000000000000000000000000000000000000000000000000000000000000
-0000000027066062d555d55500010000270666622706666200000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000270760626d666d660100001027076062270766620000000000000000000cc00000088000000ee000000aa000000dd000000bb000000ff00000066000
-000000002276662255d555d5000001002276662222766622000000000000000000cccd000088820000eee80000aaa90000ddd10000bbb30000fff40000666500
-0000000022276222666d666d100100002227622222276222000000000000000000cccd000088820000eee80000aaa90000ddd10000bbb30000fff40000666500
-0000000027222262d555d5550000000127222262272222620000000000000000000dd00000022000000880000009900000011000000330000004400000055000
-00000000227766226d666d6601001000227766222277662200000000000000000000000000000000000000000000000000000000000000000000000000000000
-000000002722226255d555d500000001272222622722226200000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000022776622666d666d00100100227766222277662200000000111111110000000000000000000000000000000000000000000000000000000000000000
+0000000027166162d555d55500010000271666622716666200000000110000110000000000000000000000000000000000000000000000000000000000000000
+00000000271761626d666d660100001027176162271766620000000010000001000cc00000088000000ee000000aa000000dd000000bb000000ff00000066000
+000000002276662255d555d5000001002276662222766622000000001000000100cccd000088820000eee80000aaa90000ddd50000bbb30000fff40000666500
+0000000022276222666d666d100100002227622222276222000000001000000100cccd000088820000eee80000aaa90000ddd50000bbb30000fff40000666500
+0000000027222262d555d5550000000127222262272222620000000010000001000dd00000022000000880000009900000055000000330000004400000055000
+00000000227766226d666d6601001000227766222277662200000000110000110000000000000000000000000000000000000000000000000000000000000000
+000000002722226255d555d500000001272222622722226200000000111111110000000000000000000000000000000000000000000000000000000000000000
 7777777c777777787777777e7777777a7777777d7777777b7777777f777777760077770000777700007777000077770000777700007777000077770000777700
-7ccccccd788888827eeeeee87aaaaaa97dddddd17bbbbbb37ffffff47666666507cccc700788887007eeee7007aaaa7007dddd7007bbbb7007ffff7007666670
-7ccccccd788888827eeeeee87aaaaaa97dddddd17bbbbbb37ffffff4766666657ccddccd788228827ee88ee87aa99aa97dd11dd17bb33bb37ff44ff476655665
-7ccccccd788888827eeeeee87aaaaaa97dddddd17bbbbbb37ffffff4766666657cd007cd782007827e8007e87a9007a97d1007d17b3007b37f4007f476500765
-7ccccccd788888827eeeeee87aaaaaa97dddddd17bbbbbb37ffffff4766666657cd007cd782007827e8007e87a9007a97d1007d17b3007b37f4007f476500765
-7ccccccd788888827eeeeee87aaaaaa97dddddd17bbbbbb37ffffff4766666657cc77ccd788778827ee77ee87aa77aa97dd77dd17bb77bb37ff77ff476677665
-7ccccccd788888827eeeeee87aaaaaa97dddddd17bbbbbb37ffffff4766666650dccccd00288882008eeee8009aaaa9001dddd1003bbbb3004ffff4005666650
-cddddddd82222222e8888888a9999999d1111111b3333333f44444446555555500dddd0000222200008888000099990000111100003333000044440000555500
+7ccccccd788888827eeeeee87aaaaaa97dddddd57bbbbbb37ffffff47666666507cccc700788887007eeee7007aaaa7007dddd7007bbbb7007ffff7007666670
+7ccccccd788888827eeeeee87aaaaaa97dddddd57bbbbbb37ffffff4766666657ccddccd788228827ee88ee87aa99aa97dd55dd57bb33bb37ff44ff476655665
+7ccccccd788888827eeeeee87aaaaaa97dddddd57bbbbbb37ffffff4766666657cd007cd782007827e8007e87a9007a97d5007d57b3007b37f4007f476500765
+7ccccccd788888827eeeeee87aaaaaa97dddddd57bbbbbb37ffffff4766666657cd007cd782007827e8007e87a9007a97d5007d57b3007b37f4007f476500765
+7ccccccd788888827eeeeee87aaaaaa97dddddd57bbbbbb37ffffff4766666657cc77ccd788778827ee77ee87aa77aa97dd77dd57bb77bb37ff77ff476677665
+7ccccccd788888827eeeeee87aaaaaa97dddddd57bbbbbb37ffffff4766666650dccccd00288882008eeee8009aaaa9005dddd5003bbbb3004ffff4005666650
+cddddddd82222222e8888888a9999999d5555555b3333333f44444446555555500dddd0000222200008888000099990000555500003333000044440000555500
 9999999499999994999999949999999499999994999999949999999499999994666d666d666d666d666d00000010666d666d666d00100100666d00000010666d
 9442244294422442944224429442244294422442944224429442244294422442d555d555d555d555d55500000001d555d555d55500010000d55500000001d555
 942cc24294288242942ee242942aa242942dd242942bb242942ff242942662426d666d666d666d666d66000001006d666d666d66010000106d66000001006d66
@@ -1060,44 +1173,44 @@ ed163cb3c03060060068b68da8168163c00c00c03c0810810e0d8168103003003c03063060c68168
 f70cdef704ff10b80080080082080280280246410b8008008080028028028018008008008a6ca0280280280207c17c17c1128028028028040140140148028028
 0280201401401401280280280280401401401480280280280207c17c17c112802802802827a9ff1c13c03c0fffffffff7cefb03ce4ce0ce4c0bff2cff8f61aff
 081bcef16f66706f763ce9ce4cefd28d79d58d69dd0df70abee9ead51f01fe5583eb0090ee2e64084e8708c16c3642740f811c134c8fc8c1f409326cf74ee0c6
-421409bdac76401c17309b383e1b16b19bd8f250200c820100100e410400fb00cb2e1bb8bcd1eb0ea000df21e03883c62e078080084004200290a30a302973d6
+421409bdac76401c17309b383e1b16b19bd8f250200c820100100e410400fb00cb2e1bb8bcd2eb0ea000df21e03883c62e078080084004200290a30a302973d6
 2f7ad4ee4b9cb9839f3172772e4ede09fb34eee094c1ff5421029028408f00428420c30c3042e021709021428028020021c30c3040902040f0080290eb0298ff
-136dd5dee1d3c2b96bc6bcea86746740780ffffae3c92b630c0a07aca914002c121470909401e61e8963d7bd23d62ba6ceac61b3bb8ff0fa645fb0ffbede0b7e
-de300378c099b0087bf78ff9df702793cc5ed0ddfb1efbe449ff1cffffa3008001e0102002048360c00c03c33060063c530600681e13a0c00c081e8d18160c03
-cf79f24ff3dbcbd664dbdf7815f6ffc8a733aed470ef76f915f664db984ce33aedc8a731003a79733aedc8a731020c8a7b3c8a733aed405103aede03aed63145
-0c8a7b3c8a7bd400a8a08739f504ec001e29d30400c0200ae079afc0a058b3002002c520040040623829c5a42a42a008008008079c81020020028e0792f6a3c9
-a689008f40063104d91400cb2cee46cce91559935f6706f800815cdec008b5f6706f8008e18e2006ce1ce11ef348ff01ef34a90fbc9d68f53e2fb6b108f57ff5
-036300b1600cddc81e8108100773368d03003c0ee66c0e4703630abdcddc81e816006077381b1081e81cddff2eddff7edd6840907763762cf6c68f18935362cf
-b948b3b9e10608e91e7068fffbd9d42c72d69ff9800efbc9d603681c9d60360833c06c63833c06c007681c81607681e8d603681c9d681efff75415419025464d
-918028020036e473cf6c683c12802ea551ef77f1e4f6750f301b6837f873b683dbd35b68f10f66d07ee9407a7bbca1effff34468ff5b67507a7b726d0f30edca
-1ecd391e4f67507eca1e70cb95b7a833ede1b68fffff8800effda568f1ed61cf0cca1e70cb50f303b68f10f61cf0cca1e70cb955cffff7d71280280280280c5e
-83280e8328b704ce1e8b385ee0e0fff7b1bff2ee0e8b383ee101b780e83280e832280288280288804316ff03c0fe6816897536f063c03c1ed00368d03c078733
-68163c0bdabd03c681ed163ce7c43cf084bf7bc1a42a42a4462d5203ab0cb2ca2080e80080200283200280080e80080200c91e03600cb1ca1007683c8d00f60b
-6002076381300ed06d00400768008020020c01001400408120028008c634c8d014cad61437b6de100ede13a0b670e1f67006d63c7ed630cad0fa7b106d0f40f8
-73c7940f913c31c3ee00363cbee6081bd0f9bbd003670e17770cba1b7008bb7cae161085bb1ff33068ff8dd87a3c33068368b68f60790b60c0fd00c07f00c07f
-60c0fc0046f6625e578bc8d6006b108d6006b1eadf300bf700cd6ad6ad6a500af583cbd6006b108d6006b10810bf7306ff603ae7bd4bd4b9618910c8d0fd6836
-b0e9c6832b50046b2e8c0b023ca832306910b2e8c00c00ca8323c7b2e8c0bd00ca832340820b2e8c010a0ca83234630cb91b2cbe6209309302b6b1e7d83cf277
-b1e79cc9c8ea300bea276b9e18e20065d81940f1100fa6ce0ce11007b8bdb1003b6ce0ce19b3ec9a13290e3277b9720cf9407ff64e666d0e9b1932e81e0e8c11
-629438629481c1932e03787c819328f183274c13c1c19b93c7d8d8cdfb11cf94c553e51bd06573c6b4cb168106d08169873c630ca10bd21cf0428f184c8e6810
-3c6342300b16810b463068d03069c00c08160c29d68103c634efb2c09ff9dff06ff60c0b71306816f0681eff6816f068103ce5c08dfb16ff39ff9035ef76f16f
-f60067360068d58160068163cffc68160068167160068dd006ff68d79ff1c9a7bd030c81e3f6006810306893bd03c03c0b16816b16b160853c00c030030ccd60
-060c681effffffff1e5dc6e17a97caa1d038b5360376ce7906ecddf00cc91bf1089bcf0066ce7cf7ee7c1acd834665f2e01400400403a08008008004ec2bd03c
-03c6b460068168109c60c03c0b129108168160423003060c6b4c8eca570c633634230ca91b1ca16081b46385336895bd00369c00c08160c29d68103c634efb2a
-08569569569103c03c03c03068168168160403c03c03408128168128103c01c01c03068068168060403c03c03408168168168103c03c03c03068168168160c40
-279e3027de1908c5b74004b341d63900de802b34086782ad1204bf5086f06f800de1ce110ad38d3204fb40cb0002981842e120028008008040020108020bd00c
-6308446706740426f38406f204018ce900400402bd2001f018d6001f118004c171483dd064181cae6300ec00360c06d079340c0e6385c1e1760813060b68b204
-0036885bd0ff5e67b1cc20387dd007783ccd0387306079300621b1c32089b3c16e081cb1034cdd68006e01f6300068a9c21c39c29c0b0c42888b3c291610c420
-1778523c0039020ee0b46850f468523c28723c29169f68523ce5c291ef529df9ffbac4ef70ff3607c17c17c17c17c17c17c17c17c17c17c17c17c17c17c1efff
-ffffb3d4a943962d4de0ff3bc2bd2bd2bc0ff3b32bd2bc6b0ef76bcedc68ff956b569d2b30ff3b56b56746b0ef726a6d0ff1179f398ff706837716f0ef37b16f
-06b1e91efb7832cf94855cf7c65da9b336ec66ecd973b6eec9993766dc81ef728f1882872872292002a0088e90229288e900882002292872872a0e7028ff9a35
-bae6dca757a65dba953ae5d9a957bf3a893365f6657e5dc915775b608938138538738938b38330a6da33beccba9ba733aeca0893873833873c06d0ec08975b6d
-93537d9753665dd1eff2f7208e7900807807807807807807807807800cc10f30611bff0cffdefd09ff0893776ccb93b95336eecb993b66ec91effffff2fa66dd
-a557a64dba353a66be6d9a554ef30110778f182efb280280280204014014014080280280280ca1e70a8028028028001401401401028028028028ff2f68f18aca
-68168168168168160068168168168160068915b681681681600687681664f7b664b5b60068108160068168168160068168168168168168160068160068168de2
-0ff33ba6ccaa13ba6ccaa13ba6ccaa13ba6c0fffffff8553665d89553665d89553665d895536651fffffff813ba6ccaa13ba6ccaa13ba6ccaa13ba6c0ff3668c
-f7defd291ef523ce5c29168f68523c0fd0b4681eb169c0b71b468f79ce1c0b72ff5520cd3cffffffb9389b10401cf80287370273effffff1bba264daa757be4d
-ba553ae5d9abd841cf1928f32507421c1192102f00984900970844a4204210298494004004219270e9c125e0c3934ac16cca97376ee2782609ff9df70efb8ff3
-8ff4db8b40140048b400401483501401e21400483501401400e869009309009c69ce8c69ceff0fff73ff70ffffffffd9ff901875cf041fff7b13cf0c68f18d0f
+136dd5dee1d3c2b96bc6bcea86746740780ffffae3c92b630c0a07aca914002c121470909401e61e8963d7bd23d62ba6ceac61b39d5cf08753aaf58ff5f678d3
+f6f10893468cc500cbdf3cffcef309bc16e2f68eefd0ff572acff0efff7d10040807800100102c130600681e910300b1ea103003c0f815060060c07ce0c03068
+1efbc71aff9e5ed633aedef3c8a7bf764db915f6a30ff3bfc8a733aed4426f915f664db90081dbcb915f664db9001064dbd164db915f628a0815f67815f6b90a
+2064dbd164dbd62005450cb9cf2027608079ce1020060100578b4d760582cd1001001e210020020391494e252152150040040048b46c001001001478b4973d1e
+453c400c7200b900aec0200e516772366fc8aacc9a7b30b7400c82e67600cda7b30b74004f04710036f06f80ff12cf780ff12d48f5ec63cfa179f5bd00cfabff
+281b108d0300ee66c07c00c008bb913c681081607733607a381b10dd6ee66c07c030038bb1c8d00c07c0eeef71feeff3fe6342848b3b9331e7363cf0cc9a131e
+fd42cd9d4f00304fc0f303cfffdec621e396bcff4400ff5ec63813c0ec638130c916036b1c9160360833c06c03833c07c63813c0ec63c0ffffb2a82a8409223a
+ec040140108137ab1e7363c1e014017daa0ffbbf07a7bb28f18853c9b7cb953c9ede9a53cf0873b6837f4283dbd56d0fffff1223cffa5bb283dbd31b68f10f66
+d07ee9c07a7bb28376d0f30edcad35c91f6f853cffff707d0fff6d23cf0f6b0e7066d0f30ed28f18953cf087b0e7066d0f30edca2effffbeb0140140140140e2
+7c11407c11cd3026f07cd1c277078fffbd8df717707cd1c17f088d3407c11407c1114014414014440a90bf78168773c03ccba1b70b1681e0f60813c681683cb9
+13c0b168d6dd68163c0fe0b16f36a1e704adfb5e052152152239e2181d50e516510407400401001c1100140040740040100ec0781300ed06d00833c16c608738
+5300183b1c8100f60b60020833400401001068008020020c0100140046b126c68026d6b0a9b5b6f000f6f81585b30f87b300b6b1e3f6b106d687dbd00b687287
+cb1eb428fc81e90e177081b1e57730c8d68fcdd6081b30f8bb30e5d8d300cdd365f0b00cadd8ff9103cf7ce6c3d1e9103c13c53c738b4853068f60068b70068b
+7306876002b73392fa3c56c6300bd00c6300bd07def108df300e63d63d63d200df2c1ed6300bd00c6300bd00c08dfb10bf73815fbd6ad6ad4b0cc006c68f63c1
+b50f463c19d2002b517468509165c1910bc08517460060065c191eb517468d60065c19120418517468005065c1912b10edc851e57318c18c1095bd0fb6c1e79b
+bd0fb46e4647d10857593bd4f047100ba6c8428f80087536706f8008b5cded0089536706f8cd17e4d81940f19bbdc310ef428bf732733b60fcd8c117c07074e8
+0394a143942c0e8c117893c36c8c11cf0c1932e81e0e8cdc1eb6c64eefd80ef42eaa1fa8d60bab16b52ed03c00b60c0b4cb16b106d08d690e7021cf0426473c0
+816b129108d03c0852b103c6810b460060c03069c63c0816b12ff5168cffcef70bf73068db8103c0b703c0ff73c0b703c0816f260cefd0bff9cff4892ff3bf0b
+f7300bb13003ce2c03003c0b1ef763c03003c0bb03003ce600bf73cebcff0e4dbd68106c0f973003c08103cc9d68168168d03c0bd0bd030ca160068108106e63
+003063c0fffffffff0fa663f83dc365d8681cda1389336fb4037eee7006ec8df00cc5e700336f3ef37f3e05e6c123ba71780200200281504004004002769d681
+6816b523003c03c08463068168d09c00c03c0302910810306b526476da306b91b129106dc8d06d030c852b1ca913ccad6081b460060c03069c63c0816b12ff51
+50c2bc2bc2bc08168168168103c03c03c03028168168120c01c03c01c08168068068103403c03403028168168120c03c03c03c08168168168103c03c03c03062
+09b4f109b6f8404ead3200ad1a86b940867409d1204b341de010adf204b70b74086f06f800de1ce110af520e500094c0421f010014004004020018004018d600
+6b10422b30b32021bf1420b71028046f400200209d61088780c63088f804002e8b02c9e603a0c0657b100760813060b68bc120607b1c2e0f8330c8103853c510
+208134cad68ff27bbd066181cbe608b3c16e681cb1038bc100398d0e110ccd1e0370c0ed0812ee6340037887b100034d4690e94694685062144cd169c0b00621
+88b3c29160894010778523c28723c29161c39169c0bc73c2916f269c0ff29cefcff5562ff38ff1383e83e83e83e83e83e83e83e83e83e83e83e83e83e83e0fff
+fffffd962d4a94396a678ff9569d69d69568ff9d19d6956b50ff3b56f663cffc2bd2bc69d18ff9d2bd2b32b50ff3135b68ff88bcf94cff303c9bb0b70ff9bd0b
+70bd0fc0ffd3c11ef42ca2ef36ba6dcd91376337eecb95377eccc933b66c0ff31cf0441c31c3194100150044f40194144f400441001941c31c3150f301cff4d9
+a557b66dba15bae5dda15fae4dcabdf15ccdc8a73ba3fa6ec8ecda530cc1c81ca1cb1cc1cd1c9105b6d99576e5dc5db9157650cc1cb1c91cb160b60760ccba5b
+ec9a9becba13baee0ff79f3104fb4004834834834834834834834834006e08f10b88df70eff6ff68cf70cc9b336edc9dca91377edcc95337ec0ffffff79753be
+6daa353ae5d9a153b57be4da22ff18e8bb3cf041ff51401401401028028028020401401401406d0f305401401401408028028028001401401401cf7973cf0456
+53c03c03c03c03c03003c03c03c03c03003cc8a53c03c03c03003c33c033afb533ada53003c00c03003c03c03c03003c03c03c03c03c03c03003c03003c03c67
+18ff99553665d89553665d89553665d8955368ffffff7caa13ba6ccaa13ba6ccaa13ba6ccaa13ba8ffffff7c89553665d89553665d89553665d8955368ff1334
+efb6ff69c0ff2916f269c03c73c29168f68523c0fd0b468db8523cfb46f068d39ffa210ee1effffffdc1ccd00280e7401cb9309b1fffffff8d5513a65dbab57a
+e5daa15fae4dd64a0ef841cf19283290e884900970844a408c3042252102900944a42002002984930f4e09270e9c125e0366dcb93377934138cffcef30ff7cff
+1cff9e5c52802002c52002802c92802807902002c928028020074b408c1840846b46746b46ff78fffb9ff38ffffffffecff480cb2e70a8fffbd81e7063cf0c68
 __label__
 77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777
 77777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777
@@ -1231,18 +1344,29 @@ __gff__
 0002040100000000000000000000000008080808080808081010101010101010202020202020202000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004352494c4c494f4e
 __map__
-b8f4163cc68627de82c7d8f0c45bf0181b9e780b1e63c3136fc1632c9fb77c12c5ff0c3fe02cb0dac26b0ba72d12b883350cde1038438220088220883b0cd61078c310380b8220088220ee1004d610788333240882200882c89d246b92bc497226455004455074b90cc032004bb40cc0f02cc1323c03b000cb002c033000cbb0
-0cc03200cb32004b3200cb002c51320003b04452323c4bf42403b0445f322cd113dafc0fb01fc7066000361cc33e0cc7800118301c03b00dc0700c188001c331ecc3706c000660c3b11f68fe2304568de64f008bf8ffff87b1ffb1f63fc60eecc6ffffff53abf993dfe4ffdd6df90760798767398767790760f987e54f90ff40
-3eaf6ead1af5ead4adc57a35ead4ad51a7f89fdc5a0dfe7845f0079f3b6bc67005c0dc1973e7cd9d37000960cd9d376bdeac7933362001366bdedc19f366cd1b90007367cd98b7b933e60e48007873e7cdddac7903105cee8c0d5ff0070dfeb8c502fe771fbebd78f603d8855dd805603f9ebdf8f6e1dd83631b8e2dffc301fc
-ffaf4088022102040810204080000102040810a24088020102040810204080000102042810a24088000102040810204c983061c2ccf23ffb1ffcffff3f099220488204ffffffcffe27ff0360316003b00ddf3000c3390cc0700e03309c1b8ee1ffe11605822408d2074110044151200882247d10040110140582240012031d4e
-a5486675b8db9c61f8243c0360113009b8db9c41b8045d56153dd00568c321b7f84c1e80244878859307a01c00646d38f400d0e914fcff8f2c59e236c1e70c875bbcc151bcce70b8c51b1cc5eb0c875bbc015afcff7f6108ffe3749bf0c8ddd6596d85476dcdb9d381478739c09b3373800067e6bc0130e7cd9d31c12be4ce98
-376700bc1973070830e6ce1ba0078f1eab87f0a887d16dc223735bf13f91c9ff601886611886ffffffff3f06600006409444499444e1ffffffc181bee83f9ce93fa0ff80fe03d52f41ff01a3fa2567fa8fe93f8ce93fa24f42f8ffffffffffffffff0701100041002441120441c4dd61d5dd61d1dd3a9ce57f64ec9f24fc909c
-e28724fc90841f92f043127e1895f04392b37f52fee72af89f24400e5c19f16320c003270102c4498000710d0478e01a881f24811cb848e2ffbf103833b88b1f388edcc1637cc7631fc9f11ec9f118b983e4788c1c3992e33172e4488ec7c8917b788c1caff1d8c16b875399e2ffff23ba824fa855b756217c02dd597407e113
-66d19d45089f407716dd41f8844881f00557f0ff3f701bfc3fdce11a7e60f80768f8011985c39f127e4082d91f127e0103606c33676c9364524ef1036e5181ffffff7b0fee396d8de19ed3d418ee396d8de1deb4e1ffffc7e905a017cef23f327639bb24e18724fca8841f92f043127e48c20fa3127e48727619bba4fc4f4470
-24019004ff276c03b601db8065c0326019b00dd8066cc3ffffc70eecc0b56458325c4b862503926007762011c4219c730bab757648140073d0e9cda870e88035799b845b93f098c5e3d1da2100f27ae8c4ff39fdcc3d00f207c6f0c39d31af681df86300876fc441f0037110c4431007419004411c044110047110044910c441
-100f411c043f1007876f0406fe18091209ff208087f8b8837019c4630e82411d940401c22b08102041128443a0444980f08b101e091205088f4409120449758b5366633720c03020c0300003300003300c08300c083020093020c03020c0300003300003300c08300c083020093020093020c03020c0300003300003300ccf30
-2067407e1ce65e6bc3ffeac72bfc80841f104e3d00dc590424e17387cbaa5b5c03209f94d7c329e00e97d988e1ffff2b0bee2ccb822bcbb22c0b0ea7bb8d02c8b22ccb82675996057716fcff7f29d69b3963f89d19930448c2e3d59c37a7821e1c4675404984c32c1eb9db84c319a003800049b0e80c12dc4102bc9913000987
-04199304e1712bc89b2458c52973920024915b49c662c58138788c04418020c0111b41120701e89b3e5cdbf0efc1bb2ddbf0eec1bf0d97bee9c3ff7435ff23e1111e1dce1eedd161ecd11e1df82539c56f54127e1dce1eedd1b1477b74187bb447caff0040000000000000000000000000000000000000000000000000000000
+c7a5b7e031363cf1163cc68627de82c7d8f0c45bf0181b9e780b1e63f9bce59328fe67f8016781d5165e5b386d91c01dac61f086c019120441100441dc61b086c01b86c0591004411004718720b086c01b9c21411004411044ee245993e44d92332982222882a2cb6500960158a2650086670996e11980055806601980015886
+650096015896015892015806608992011880259292e159a227198025fa9261899e90e67f80fd38360003b0e118f66138060cc080e118806d008663c0000c188e611f86630330001b8efd40f31f21b06a347f0258c4ffff3f8cfd8fb5ff31766037feffff9f5acd9ffc26ffef6ecb3f00cb3b3ccb393ccb3b00cb3f2c7f82fc07
+f279756bd5a857a76e2dd6ab51a76e8d3ac5ffe4d66af0c72b823ff8dc5933862b00e6ce983b6feebc0148006beebc59f366cd9bb10109b059f3e6ce98376bde8004983b6bc6bccd9d31774002c09b3b6fee66cd1b80e072676cf8823f68f0c72d16f0bffbf0edc5b31fc02eecc22e00fbf1ecc5b70fef1e1cdb706cf91f0ee0
+ff7f05421408112040800001020408102040801005421408102040800001020408102040811005420408102040800061c28409136696ffd9ffe0ffffff499004411224f8ffff7ff63ff91f008b011b806df8860118ce610086731880e1dc700cff0fb728102441903e088220088a02411024e983200880a0281024019018e870
+2a4532abc3dde60cc327e119008b8049c0dde60cc225e8b2aae8812e401b0eb9c567f2002441c22b9c3c00e500206bc3a107804ea7e0ff7f64c912b7093e6738dce20d8ee27586c32ddee0285e6738dce20dd0e2ffff0b43f81fa7db8447eeb6ce6a2b3c6a6bce9d0e3c3acc01de9c9903043833e70d80396fee8c095e2177c6
+bc3903e0cd983b40803177de003d78f4583d84473d8c6e131e99db8aff894cfe07c3300cc330fcffffffff3100033000a2244aa2240affffff0f0ef445ffe14cff01fd07f41fa87e09fa0f18d52f39d37f4cff614cff117d12c2ffffffffffffffff3f0880000802200992200822ee0eabee0e8beed6e12cff2363ff24e187e4
+143f24e18724fc90841f92f0c3a8841f929cfd93f23f57c1ff240172e0ca881f03011e380910204e0204886b20c003d740fc2009e4c04512ffff85c099c15dfcc071e40e1ee33b1efb488ef7488ec7c81d24c763e4c8911c8f912347723c468edcc363e4788dc70e5e3b9cca14ffff1fd1157c42adbab50ae113e8cea23b089f
+308bee2c42f804bab3e80ec227440a842fb882ffff81dbe0ffe10ed7f003c33f40c30fc8281cfe94f00312ccfe90f00b1800639b39639b2493728a1f708b0afcffffdf7b70cf696b0cf79ca6c670cf696b0cf7a60dffff3f4e2f00bd7096ff91b1cbd925093f24e14725fc90841f92f043127e1895f04392b3cbd825e57f2282
+23098024f83f611bb00dd8062c039601cb806dc036601bfeff3f766007ae25c392e15a322c1990043bb00389200ee19c5b58adb343a20098834e6f46854307acc9db24dc9a84c72c1e8fd60e0190d74327fecfe967ee01903f30861fee8c7945ebc01f03387c230e821f8883201e823808822408e2200882208883204882200e
+827808e220f88138387c2330f0c7489048f807013cc4c71d84cb201e73100ceaa02408105e4180000992201c02254a02845f84f04890284078244a902048aa5b9c321bbb010186010186011880011880614080614080014980010186010186011880011880614080614080014980014980010186010186011880011880617886
+013903f2e330f75a1bfe573f5ee10724fc8070ea01e0ce2220099f3b5c56dde21a00f9a4bc1e4e0177b8cc460cffff5f59706759165c599665597038dd6d1440966559163ccbb22cb8b3e0ffff4bb1decc19c3efcc982440121eafe6bc3915f4e030aa034a221c66f1c8dd261cce001d00044882456790e00e12e0cd9c004838
+24c89824088f5b41de24c12a4e9993042089dc4a32162b0ec4c16324080204018ed80892380840dff4e1da867f0fde6dd986770ffe6db8f44d1ffea7abf91f098ff0e870f6688f0e638ff6e8c02fc9297ea392f0eb70f6688f8e3ddaa3c3d8a33d52fe07c043f8ffffff7f40d3344db8f4e2d2344d13feffffff1ff010feffff
+ff1f90334d9355e1d28b4b4e654dd384ffffffff073c8edf2050ed1600fdc27f1080760b807ee13f0840bb0540bff01f04a0dd02e071fc0601c8aab75700f40bff410032eaec1500fdc27f1080bc5a7b0540bff01f3e01c8a9b157007c2e458a1429929cfd8751fcffffffffffffffe3d4d87f489122458a248f7833e616fa9c
+02f066cc1da0078f3763ee0048c2e5cd983b1c16f17933e60e87457c5e8db9c361119f3763ee7058c4e7cd983b1c16f17933e60e80245cde8cb903f4e0f166d41df45905f02167ff04ec9f00a3ba9ce9c1b1078f411cce1e3c0671e872aa035f3405bf26fcd084ffffaf18e03f75e3d14ee1d1e6ec3036e1d19cced89ccd98f0
+68737618dbf068ce66acce664c78b4393b8c4d78947dc2a31bff17013cc1136080800002020c081020408000010204081020408000010204081020408000010204081020408000010204081020400001010404089ee0c947f05ffa0520b80320d0890008822b088020d081200082c0d816040110e8421000c11904806e14ff51
+e069ee3618dbb00ddbe44e0f2441d236088255084e01b7c6400116053814e06e4621088220c0dd04411004019b200882206013044110046c82200882804d100441100e011000e190101e6f00867f1bfe2d1bfe6df88761f8e10eff86611b9efd78366038369cc30f7875575c18c5ffff70b6e131b6e17096e2319ae170b6e131
+b6e17fad6d78bc6d38aca578bc6638ac6d78bc6df8ff1f1e700ba3000aa000dcc1200882200814ff451004411040f13f044110040114ff4310044110ff4b10044110a8531805500005e04c24f88fe0f1f6e0288ecd9c3773de062000b699f366cedb06b805e06d33e7cd9cb70d088099f3f698f3063805e0cd9cb7c79c372000
+3673de3673de0658c5e16de6366f03103c7b7098c57f44866e85c79c3567ee8c41c165ce9a3377c6bce13467cd993b63de8c01a80073d69cb933e6cd983b0012cc5973e6ce983763ee9c4166015873e6ce983763ee9c59830e387367cc9b3177ceac9983bc5a15dc19f366cc9d336be6f019f366cc9d336be6707a33e6ce9935
+73b89c0ac6dc39b3660e8fd252398dac466623a311feffff3ffd12b07f0274031e01551224411220087028c0a470087028c0a20097022441122441001ebd6dc99e64abb1ff71bbff70f61fb5ba257b926de6fea3f8ffffffffcb688b2ba85114455114659aa6699aa64d100441100408800008800001100001100e4110004138
+044000844310004110800982200882304dd3344dd3a2288aa228cad113fc090e630fde0dc0866fc3b50dc0866fc3d1e107367cce86c7d87039ebf0181b800def1e5c09fe44e256f144c393601a9ca9b0a8c1993b381311b983331109227730a620720763de604c85570dc614c41ba2610aa261c11444c6e04dc18c211adc2988
+8c21813b050e35b853316788066b22226788454cc13305188b8e7873e70d2ef10806a1033adc0130480857bc0182412278e20e906090708b23de004130480440dc0102048384807803044030480872070887609000bc013a00c1202177788d429257a8d05b600d8031b73287c01a00e1f086c39959604ee50e8f314003bc0170
+061804600e1671c8ab31c01d9ce1b00693d61467b8dc41381c02b00677c2e10d8039970062d5198c217007c01c006b388d4180b7608039c0994700ee8c7ed02b106b2f10c0d90d1805dcdd40006337e016f076030172034e016f3710c0d80d5805dcdd40006b376016d80d78c8dc56777366cc99bb9913b0c3dd9c1973e66ee6
+0418d5353d009c5d780c0270f6b8c56310803ea73af045ee14fc9af04313feffbf0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
 000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -1397,13 +1521,10 @@ __meta:4f78820c-0dc1-11ed-861d-0242ac120002__
 02050e09090600000a05090b0d0900000204060909060000040206090906000002050609090600000a050609090600000900060909060000000200070002000000160915120d00000204090909060000040209090906000002050809090600000900090909060000040205050202000000010709090701000500050502020000
 __meta:1bdaec14-d23c-4c68-9cbb-45d80342eabf__
 {
-	["fillPattern"] = {
-	},
 	["pico8"] = {
 		["binaryOptions"] = "-i 1 -s 1 ",
 	},
 	["SFXname"] = {
-	},
-	["MusicName"] = {
+		[0] = "",
 	},
 }
